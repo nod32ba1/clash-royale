@@ -199,6 +199,15 @@ def write_index():
 
 
 def main():
+    # Player names can be non-ASCII (e.g. CJK). On Windows the console defaults
+    # to cp1252, so printing such a name raises UnicodeEncodeError and the card
+    # data — already written — gets misreported as a FAIL. Force UTF-8 output.
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8")
+        except (AttributeError, ValueError):
+            pass
+
     if not TOKEN:
         sys.exit("ERROR: CR_API_TOKEN not set")
     tags = [t.strip() for t in TAGS.split(",") if t.strip()]
