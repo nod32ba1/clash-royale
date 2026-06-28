@@ -110,7 +110,7 @@
 <script>
 const RARITY = ["Common","Rare","Epic","Legendary","Champion"];
 const RCOLOR = {Common:"var(--common)",Rare:"var(--rare)",Epic:"var(--epic)",Legendary:"var(--legendary)",Champion:"var(--champion)"};
-const DATA_PATH = "../data/";   // dashboard lives in /docs, data in /data
+const DATA_PATH = "data/";   // data lives in docs/data so GitHub Pages (source /docs) serves it
 
 let state = {history:null, snapIdx:null, baseIdx:null, sort:{k:"level",dir:-1}, rarity:new Set(RARITY), q:""};
 

@@ -10,9 +10,9 @@ Give it a player tag → it tracks levels, cards held, and day-over-day gains au
 GitHub Action (daily cron)
    └─ scripts/fetch_snapshot.py
         └─ GET official API (via fixed-IP proxy)
-             └─ append dated snapshot to data/<TAG>.json
+             └─ append dated snapshot to docs/data/<TAG>.json
                   └─ commit + push
-                       └─ docs/index.html reads the JSON history → dashboard
+                       └─ docs/index.html reads docs/data/*.json → dashboard
 ```
 
 The official API returns each card's `level`, `maxLevel`, and `count` (cards held toward the next upgrade). The script normalizes the internal per-rarity level onto the unified "King Level" display scale (the numbers you see on RoyaleAPI / in-game) — and it auto-calibrates from the data, so it keeps working when Supercell raises the level cap.

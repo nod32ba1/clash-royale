@@ -22,7 +22,7 @@ from pathlib import Path
 API_BASE = os.environ.get("CR_API_BASE", "https://proxy.royaleapi.dev/v1")
 TOKEN = os.environ.get("CR_API_TOKEN")
 TAGS = os.environ.get("CR_PLAYER_TAGS", "")
-DATA_DIR = Path(__file__).resolve().parent.parent / "data"
+DATA_DIR = Path(__file__).resolve().parent.parent / "docs" / "data"
 
 # Max card count needed to reach a given rarity's top level (display level 15),
 # i.e. cumulative cards from level 1 -> max. Used to compute "outstanding".
