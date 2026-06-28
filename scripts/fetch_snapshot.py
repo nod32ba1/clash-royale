@@ -24,10 +24,65 @@ TOKEN = os.environ.get("CR_API_TOKEN")
 TAGS = os.environ.get("CR_PLAYER_TAGS", "")
 DATA_DIR = Path(__file__).resolve().parent.parent / "docs" / "data"
 
-# Max card count needed to reach a given rarity's top level (display level 15),
-# i.e. cumulative cards from level 1 -> max. Used to compute "outstanding".
-# These are the standard CR upgrade totals per rarity.
-RARITY_MAX_LEVEL = {"Common": 15, "Rare": 15, "Epic": 15, "Legendary": 15, "Champion": 15}
+# Upgrade economy tables (NOT exposed by the API). Source: Clash Royale wiki
+# (post-2026 Level-16 economy). Keyed by rarity -> {unified display level: cost to
+# upgrade TO that level from the previous one}. The entry at a rarity's FLOOR level
+# (e.g. Common 1, Rare 3) is the card's unlock cost, not an upgrade step.
+# Validated: column/row totals match the wiki, and the Common column reproduces the
+# RoyaleAPI figures for Electro Spirit (95550 gold, lvl4->13) and Ice Spirit.
+CARDS_REQ = {
+    "Common":    {1:1, 2:2, 3:4, 4:10, 5:20, 6:50, 7:100, 8:200, 9:400, 10:800, 11:1000, 12:1500, 13:2500, 14:3500, 15:5500, 16:7500},
+    "Rare":      {3:1, 4:2, 5:4, 6:10, 7:20, 8:50, 9:100, 10:200, 11:300, 12:400, 13:550, 14:750, 15:1000, 16:1400},
+    "Epic":      {6:1, 7:2, 8:4, 9:10, 10:20, 11:30, 12:50, 13:70, 14:100, 15:130, 16:180},
+    "Legendary": {9:1, 10:2, 11:4, 12:6, 13:9, 14:12, 15:14, 16:20},
+    "Champion":  {11:1, 12:2, 13:5, 14:8, 15:11, 16:15},
+}
+GOLD_REQ = {
+    "Common":    {2:5, 3:20, 4:50, 5:150, 6:400, 7:1000, 8:2000, 9:4000, 10:8000, 11:15000, 12:25000, 13:40000, 14:60000, 15:90000, 16:120000},
+    "Rare":      {4:50, 5:150, 6:400, 7:1000, 8:2000, 9:4000, 10:8000, 11:15000, 12:25000, 13:40000, 14:60000, 15:90000, 16:120000},
+    "Epic":      {7:400, 8:2000, 9:4000, 10:8000, 11:15000, 12:25000, 13:40000, 14:60000, 15:90000, 16:120000},
+    "Legendary": {10:5000, 11:15000, 12:25000, 13:40000, 14:60000, 15:90000, 16:120000},
+    "Champion":  {12:25000, 13:40000, 14:60000, 15:90000, 16:120000},
+}
+
+
+def upgrade_economy(rarity: str, level: int, count: int) -> dict:
+    """Derive the upgrade-economy columns for one card.
+
+    Inputs are the unified display `level`, the rarity, and `count` = loose spare
+    cards held (the API's `count`). Returns holding/max/outstanding/new level/gold.
+    All upgrade costs come from the per-rarity CARDS_REQ / GOLD_REQ tables.
+    """
+    cards = CARDS_REQ.get(rarity, {})
+    gold = GOLD_REQ.get(rarity, {})
+    if not cards:
+        return {}
+    floor = min(cards)                       # level a fresh card of this rarity starts at
+    top = max(cards)                         # max level in the tables (16)
+    # Cards already sunk into reaching the current level (excludes the floor unlock).
+    invested = sum(c for lvl, c in cards.items() if floor < lvl <= level)
+    holding = invested + count
+    max_card = sum(c for lvl, c in cards.items() if lvl > floor)   # floor -> max
+    outstanding = max(0, max_card - holding)
+
+    # Greedily spend the loose `count` to see how many levels it buys (card-limited).
+    spare = count
+    new_level = level
+    new_gold = 0
+    for lvl in range(level + 1, top + 1):
+        need = cards.get(lvl)
+        if need is None or spare < need:
+            break
+        spare -= need
+        new_level = lvl
+        new_gold += gold.get(lvl, 0)
+    return {
+        "holding": holding,
+        "max_card": max_card,
+        "outstanding": outstanding,
+        "new_level": new_level,
+        "new_level_gold": new_gold,
+    }
 
 
 def fetch_player(tag: str) -> dict:
@@ -68,18 +123,27 @@ def normalize_cards(player: dict) -> list[dict]:
         display_max = top_max
         max_evo = c.get("maxEvolutionLevel")
         evo_level = c.get("evolutionLevel", 0)
+        rarity = (c.get("rarity") or "").capitalize()
+        count = c.get("count", 0)
+        econ = upgrade_economy(rarity, display_level, count)
         rows.append({
             "name": c.get("name"),
             "id": c.get("id"),
-            "rarity": (c.get("rarity") or "").capitalize(),
+            "rarity": rarity,
             "elixir": c.get("elixirCost"),
             "level": display_level,           # display scale (e.g. 1..16)
             "max_level": display_max,
-            "count": c.get("count", 0),       # cards held toward NEXT upgrade
+            "count": count,                   # loose spare cards held
             "star_level": c.get("starLevel", 0),
             "evo_level": evo_level,
             "max_evo_level": max_evo,
             "is_maxed": display_level >= display_max,
+            # Upgrade economy (computed from embedded CR tables, not the API):
+            "holding": econ.get("holding"),
+            "max_card": econ.get("max_card"),
+            "outstanding": econ.get("outstanding"),
+            "new_level": econ.get("new_level"),
+            "new_level_gold": econ.get("new_level_gold"),
         })
     return rows
 

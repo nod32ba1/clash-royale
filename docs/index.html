@@ -91,11 +91,15 @@
     <table id="grid">
       <thead><tr>
         <th data-k="name">Card</th>
+        <th data-k="rarity">Rarity</th>
         <th data-k="level" class="num">Level</th>
-        <th class="hide-sm">Progress</th>
-        <th data-k="count" class="num hide-sm">Held</th>
-        <th data-k="dLevel" class="num">Δ Lvl</th>
-        <th data-k="dCount" class="num">Δ Held</th>
+        <th data-k="new_level" class="num">New Lvl</th>
+        <th data-k="new_level_gold" class="num">New Gold</th>
+        <th data-k="holding" class="num">Holding</th>
+        <th data-k="max_card" class="num hide-sm">Max</th>
+        <th data-k="outstanding" class="num">Outstanding</th>
+        <th data-k="dLevel" class="num hide-sm">Δ Lvl</th>
+        <th data-k="dCount" class="num hide-sm">Δ Held</th>
       </tr></thead>
       <tbody id="rows"></tbody>
     </table>
@@ -123,7 +127,7 @@ async function loadIndex(){
   });
   sel.onchange = ()=>loadPlayer(sel.value);
   if(idx.players.length) loadPlayer(idx.players[0].file);
-  else document.getElementById("rows").innerHTML = '<tr><td colspan="6" class="empty">No players tracked yet. Run the snapshot workflow.</td></tr>';
+  else document.getElementById("rows").innerHTML = '<tr><td colspan="10" class="empty">No players tracked yet. Run the snapshot workflow.</td></tr>';
 }
 
 async function loadPlayer(file){
@@ -200,34 +204,37 @@ function render(){
   const {k,dir}=state.sort;
   rows.sort((a,b)=>{
     let va=a[k], vb=b[k];
-    if(k==="name") return dir*va.localeCompare(vb);
+    if(k==="name"||k==="rarity") return dir*String(va).localeCompare(String(vb));
     return dir*((va||0)-(vb||0));
   });
 
   document.getElementById("rows").innerHTML = rows.length? rows.map(rowHTML).join("")
-    : '<tr><td colspan="6" class="empty">No cards match.</td></tr>';
+    : '<tr><td colspan="10" class="empty">No cards match.</td></tr>';
 }
 
 function stat(v,l,cls=""){
   return `<div class="stat"><div class="v ${cls}">${v}</div><div class="l">${l}</div></div>`;
 }
 
+function num(v){ return (v!=null && v.toLocaleString) ? v.toLocaleString() : (v ?? "—"); }
+
 function rowHTML(c){
-  // Honest bar: fraction of the way to max LEVEL (the API doesn't expose the
-  // per-level card requirement, so we visualize level progress, not card count).
-  const frac = c.max_level ? c.level / c.max_level : 0;
-  const full = c.is_maxed;
-  const prog = `<div class="prog ${full?'full':''}"><i style="width:${Math.round(frac*100)}%"></i></div>`;
   const dl = c.dLevel>0?`<span class="delta up">+${c.dLevel}</span>`:`<span class="delta zero">·</span>`;
   const dc = c.dCount>0?`<span class="delta up">+${c.dCount.toLocaleString()}</span>`:`<span class="delta zero">·</span>`;
-  const held = (c.count!=null && c.count.toLocaleString) ? c.count.toLocaleString() : (c.count ?? "");
+  // New level: highlight when the held cards can buy at least one upgrade.
+  const upable = (c.new_level||0) > c.level;
+  const newLvl = `<span class="lvl ${upable?'':'maxed'}">${c.new_level ?? "—"}</span>`;
   return `<tr>
     <td><div class="card-cell"><span class="rdot" style="background:${RCOLOR[c.rarity]}"></span>${c.name}</div></td>
+    <td><span style="color:${RCOLOR[c.rarity]}">${c.rarity||""}</span></td>
     <td class="num"><span class="lvl ${c.is_maxed?'maxed':''}">${c.level}<span class="mx">/${c.max_level}</span></span></td>
-    <td class="hide-sm">${prog}</td>
-    <td class="num hide-sm">${held}</td>
-    <td class="num">${dl}</td>
-    <td class="num">${dc}</td>
+    <td class="num">${newLvl}</td>
+    <td class="num">${num(c.new_level_gold)}</td>
+    <td class="num">${num(c.holding)}</td>
+    <td class="num hide-sm">${num(c.max_card)}</td>
+    <td class="num">${num(c.outstanding)}</td>
+    <td class="num hide-sm">${dl}</td>
+    <td class="num hide-sm">${dc}</td>
   </tr>`;
 }
 
@@ -239,7 +246,7 @@ async function fetchJSON(url){
 
 loadIndex().catch(e=>{
   document.getElementById("rows").innerHTML =
-    `<tr><td colspan="6" class="empty">Couldn't load data (${e.message}).<br>Make sure data/index.json exists.</td></tr>`;
+    `<tr><td colspan="10" class="empty">Couldn't load data (${e.message}).<br>Make sure data/index.json exists.</td></tr>`;
 });
 </script>
 </body>
