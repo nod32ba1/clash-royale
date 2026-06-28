@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Card Collection Tracker</title>
+<style>
+  :root{
+    --bg:#0e1326; --panel:#161d38; --panel-2:#1f2747; --line:#2c3768;
+    --ink:#eef1ff; --muted:#8b97c9; --gold:#f4c145; --gain:#46d39a; --accent:#6c8cff;
+    --common:#9aa7c7; --rare:#f3a738; --epic:#c069f0; --legendary:#3fd0e0; --champion:#ffd23f;
+    --r:14px;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:
+      radial-gradient(1200px 600px at 70% -10%, #1b2f5e 0, transparent 60%),
+      var(--bg);
+    color:var(--ink);
+    font-family:"Segoe UI",-apple-system,system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1080px;margin:0 auto;padding:28px 20px 80px}
+  header.top{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-end;justify-content:space-between;margin-bottom:24px}
+  h1{font-size:clamp(26px,4vw,40px);margin:0;letter-spacing:-.02em;line-height:1}
+  h1 small{display:block;font-size:13px;font-weight:500;color:var(--muted);letter-spacing:.04em;text-transform:uppercase;margin-bottom:8px}
+  .controls{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  select,button.seg{
+    background:var(--panel-2);color:var(--ink);border:1px solid var(--line);
+    border-radius:10px;padding:9px 13px;font-size:14px;font-family:inherit;cursor:pointer;
+  }
+  .summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:26px}
+  .stat{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:16px 18px}
+  .stat .v{font-size:28px;font-weight:700;letter-spacing:-.02em}
+  .stat .v.gold{color:var(--gold)}
+  .stat .v.gain{color:var(--gain)}
+  .stat .l{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-top:4px}
+  .barwrap{display:flex;align-items:center;gap:6px;margin-top:8px}
+  .toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
+  .toolbar input{flex:1;min-width:160px;background:var(--panel-2);border:1px solid var(--line);
+    border-radius:10px;padding:10px 13px;color:var(--ink);font-size:14px;font-family:inherit}
+  .chips{display:flex;gap:6px;flex-wrap:wrap}
+  .chip{font-size:12px;padding:6px 11px;border-radius:999px;border:1px solid var(--line);
+    background:transparent;color:var(--muted);cursor:pointer;text-transform:capitalize}
+  .chip.on{background:var(--accent);border-color:var(--accent);color:#fff}
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  thead th{position:sticky;top:0;background:var(--bg);text-align:left;color:var(--muted);
+    font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.05em;
+    padding:10px 12px;border-bottom:1px solid var(--line);cursor:pointer;white-space:nowrap}
+  thead th.num,td.num{text-align:right;font-variant-numeric:tabular-nums}
+  tbody td{padding:11px 12px;border-bottom:1px solid #1b2342}
+  tbody tr:hover{background:#141b34}
+  .card-cell{display:flex;align-items:center;gap:10px;font-weight:600}
+  .rdot{width:9px;height:9px;border-radius:2px;flex:none;transform:rotate(45deg)}
+  .lvl{font-variant-numeric:tabular-nums;font-weight:700}
+  .lvl .mx{color:var(--muted);font-weight:500}
+  .lvl.maxed{color:var(--gold)}
+  .prog{position:relative;height:8px;width:120px;background:#0c1126;border-radius:6px;overflow:hidden;border:1px solid #232c54}
+  .prog > i{position:absolute;inset:0;width:0;background:linear-gradient(90deg,var(--accent),#9db4ff);border-radius:6px}
+  .prog.full > i{background:linear-gradient(90deg,var(--gold),#ffe08a)}
+  .delta{font-weight:700;font-variant-numeric:tabular-nums}
+  .delta.up{color:var(--gain)}
+  .delta.zero{color:var(--muted)}
+  .empty{text-align:center;padding:60px 20px;color:var(--muted)}
+  footer{margin-top:30px;color:var(--muted);font-size:12px;text-align:center}
+  a{color:var(--accent)}
+  @media(max-width:640px){
+    .hide-sm{display:none}
+    .prog{width:80px}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <h1><small>Card Collection Tracker</small><span id="playerName">—</span></h1>
+    <div class="controls">
+      <select id="playerSelect" aria-label="Player"></select>
+      <select id="compareSelect" aria-label="Compare against"></select>
+    </div>
+  </header>
+
+  <section class="summary" id="summary"></section>
+
+  <div class="toolbar">
+    <input id="search" type="text" placeholder="Find a card…" aria-label="Search cards">
+    <div class="chips" id="rarityChips"></div>
+  </div>
+
+  <div style="overflow-x:auto;background:var(--panel);border:1px solid var(--line);border-radius:var(--r)">
+    <table id="grid">
+      <thead><tr>
+        <th data-k="name">Card</th>
+        <th data-k="level" class="num">Level</th>
+        <th class="hide-sm">Progress</th>
+        <th data-k="count" class="num hide-sm">Held</th>
+        <th data-k="dLevel" class="num">Δ Lvl</th>
+        <th data-k="dCount" class="num">Δ Held</th>
+      </tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+  </div>
+
+  <footer>
+    Snapshots fetched daily from the official Clash Royale API ·
+    <span id="dateRange"></span>
+  </footer>
+</div>
+
+<script>
+const RARITY = ["Common","Rare","Epic","Legendary","Champion"];
+const RCOLOR = {Common:"var(--common)",Rare:"var(--rare)",Epic:"var(--epic)",Legendary:"var(--legendary)",Champion:"var(--champion)"};
+const DATA_PATH = "../data/";   // dashboard lives in /docs, data in /data
+
+let state = {history:null, snapIdx:null, baseIdx:null, sort:{k:"level",dir:-1}, rarity:new Set(RARITY), q:""};
+
+async function loadIndex(){
+  const idx = await fetchJSON(DATA_PATH+"index.json");
+  const sel = document.getElementById("playerSelect");
+  idx.players.forEach(p=>{
+    const o=document.createElement("option"); o.value=p.file; o.textContent=`${p.name} (${p.tag})`;
+    sel.appendChild(o);
+  });
+  sel.onchange = ()=>loadPlayer(sel.value);
+  if(idx.players.length) loadPlayer(idx.players[0].file);
+  else document.getElementById("rows").innerHTML = '<tr><td colspan="6" class="empty">No players tracked yet. Run the snapshot workflow.</td></tr>';
+}
+
+async function loadPlayer(file){
+  state.history = await fetchJSON(DATA_PATH+file);
+  const snaps = state.history.snapshots;
+  document.getElementById("playerName").textContent = state.history.name || "—";
+
+  const cmp = document.getElementById("compareSelect");
+  cmp.innerHTML = "";
+  snaps.forEach((s,i)=>{
+    const o=document.createElement("option"); o.value=i; o.textContent="vs "+s.date; cmp.appendChild(o);
+  });
+  state.snapIdx = snaps.length-1;
+  state.baseIdx = Math.max(0, snaps.length-2);   // default: compare latest vs previous
+  cmp.value = state.baseIdx;
+  cmp.onchange = ()=>{ state.baseIdx=+cmp.value; render(); };
+
+  buildRarityChips();
+  document.getElementById("search").oninput = e=>{ state.q=e.target.value.toLowerCase(); render(); };
+  document.querySelectorAll("thead th[data-k]").forEach(th=>{
+    th.onclick = ()=>{ const k=th.dataset.k;
+      state.sort = {k, dir: state.sort.k===k ? -state.sort.dir : -1}; render(); };
+  });
+  render();
+}
+
+function buildRarityChips(){
+  const box=document.getElementById("rarityChips"); box.innerHTML="";
+  RARITY.forEach(r=>{
+    const c=document.createElement("button"); c.className="chip on"; c.textContent=r;
+    c.style.borderColor=RCOLOR[r];
+    c.onclick=()=>{ c.classList.toggle("on");
+      c.classList.contains("on")?state.rarity.add(r):state.rarity.delete(r); render(); };
+    box.appendChild(c);
+  });
+}
+
+function indexByName(snap){
+  const m={}; snap.cards.forEach(c=>m[c.name]=c); return m;
+}
+
+function render(){
+  const snaps=state.history.snapshots;
+  const cur=snaps[state.snapIdx], base=snaps[state.baseIdx];
+  const baseMap=indexByName(base);
+
+  // summary
+  const tot=cur.cards.length;
+  const maxed=cur.cards.filter(c=>c.is_maxed).length;
+  let lvlGain=0, cardGain=0, leveled=0;
+  cur.cards.forEach(c=>{
+    const b=baseMap[c.name];
+    if(b){ const dl=c.level-b.level; if(dl>0){lvlGain+=dl;leveled++;}
+           const dc=c.count-b.count; if(dc>0)cardGain+=dc; }
+  });
+  const avg=(cur.cards.reduce((a,c)=>a+c.level,0)/tot);
+  document.getElementById("summary").innerHTML = `
+    ${stat(tot,"Cards owned")}
+    ${stat(avg.toFixed(2),"Avg level")}
+    ${stat(maxed+"/"+tot,"Maxed","gold")}
+    ${stat("+"+leveled,"Cards leveled","gain")}
+    ${stat("+"+lvlGain,"Levels gained","gain")}
+    ${stat("+"+cardGain.toLocaleString(),"Cards collected","gain")}
+  `;
+  document.getElementById("dateRange").textContent =
+    `${snaps[0].date} → ${cur.date} · ${snaps.length} snapshots`;
+
+  // rows
+  let rows = cur.cards.map(c=>{
+    const b=baseMap[c.name]||{level:c.level,count:c.count};
+    return {...c, dLevel:c.level-b.level, dCount:c.count-b.count};
+  }).filter(c=> state.rarity.has(c.rarity) && c.name.toLowerCase().includes(state.q));
+
+  const {k,dir}=state.sort;
+  rows.sort((a,b)=>{
+    let va=a[k], vb=b[k];
+    if(k==="name") return dir*va.localeCompare(vb);
+    return dir*((va||0)-(vb||0));
+  });
+
+  document.getElementById("rows").innerHTML = rows.length? rows.map(rowHTML).join("")
+    : '<tr><td colspan="6" class="empty">No cards match.</td></tr>';
+}
+
+function stat(v,l,cls=""){
+  return `<div class="stat"><div class="v ${cls}">${v}</div><div class="l">${l}</div></div>`;
+}
+
+function rowHTML(c){
+  // Honest bar: fraction of the way to max LEVEL (the API doesn't expose the
+  // per-level card requirement, so we visualize level progress, not card count).
+  const frac = c.max_level ? c.level / c.max_level : 0;
+  const full = c.is_maxed;
+  const prog = `<div class="prog ${full?'full':''}"><i style="width:${Math.round(frac*100)}%"></i></div>`;
+  const dl = c.dLevel>0?`<span class="delta up">+${c.dLevel}</span>`:`<span class="delta zero">·</span>`;
+  const dc = c.dCount>0?`<span class="delta up">+${c.dCount.toLocaleString()}</span>`:`<span class="delta zero">·</span>`;
+  const held = (c.count!=null && c.count.toLocaleString) ? c.count.toLocaleString() : (c.count ?? "");
+  return `<tr>
+    <td><div class="card-cell"><span class="rdot" style="background:${RCOLOR[c.rarity]}"></span>${c.name}</div></td>
+    <td class="num"><span class="lvl ${c.is_maxed?'maxed':''}">${c.level}<span class="mx">/${c.max_level}</span></span></td>
+    <td class="hide-sm">${prog}</td>
+    <td class="num hide-sm">${held}</td>
+    <td class="num">${dl}</td>
+    <td class="num">${dc}</td>
+  </tr>`;
+}
+
+async function fetchJSON(url){
+  const r = await fetch(url, {cache:"no-store"});
+  if(!r.ok) throw new Error(url+" "+r.status);
+  return r.json();
+}
+
+loadIndex().catch(e=>{
+  document.getElementById("rows").innerHTML =
+    `<tr><td colspan="6" class="empty">Couldn't load data (${e.message}).<br>Make sure data/index.json exists.</td></tr>`;
+});
+</script>
+</body>
+</html>

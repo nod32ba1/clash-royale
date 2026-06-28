@@ -1,0 +1,42 @@
+name: Daily Card Snapshot
+
+on:
+  schedule:
+    # 00:30 UTC daily. Adjust as you like (cron is in UTC).
+    - cron: "30 0 * * *"
+  workflow_dispatch:        # lets you trigger manually from the Actions tab
+
+permissions:
+  contents: write           # needed to commit the new snapshot back to the repo
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Fetch snapshot
+        env:
+          CR_API_TOKEN: ${{ secrets.CR_API_TOKEN }}
+          CR_PLAYER_TAGS: ${{ vars.CR_PLAYER_TAGS }}
+          # Uses the RoyaleAPI proxy (fixed IP 45.79.218.79) by default so you
+          # whitelist that IP on your token instead of GitHub's rotating IPs.
+        run: python scripts/fetch_snapshot.py
+
+      - name: Commit snapshot
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/
+          if git diff --staged --quiet; then
+            echo "No changes to commit."
+          else
+            git commit -m "Snapshot $(date -u +%Y-%m-%d)"
+            git push
+          fi
